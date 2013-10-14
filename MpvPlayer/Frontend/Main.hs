@@ -69,17 +69,21 @@ connectSignals appRef = do
 
 prepareUI hs = do
   -- TODO: show black background for video area
-  return  ()
+  return ()
 
 updateUI :: IORef App -> IO Bool
 updateUI appRef = do
   app <- readIORef appRef
+  let hs = appHandles app
   when (isJust $ appPlayer app) $ do
     let p = fromJust $ appPlayer app
-    len <- mpvGetLength p
-    pos <- mpvGetPosAsRatio p
-    return ()
-    
+    status <- mpvGetPlayStatus p
+    case status of
+      Nothing -> return ()
+      Just s  -> do
+        let ratio = (playStatusPos s) / (playStatusLength s)
+        rangeSetValue (scale hs) ratio
+                 
   return True
 
 main = do

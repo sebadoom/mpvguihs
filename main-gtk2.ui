@@ -175,8 +175,10 @@
               <object class="GtkHScale" id="Scale">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="adjustment">ScaleAdjustment</property>
                 <property name="show_fill_level">True</property>
-                <property name="round_digits">1</property>
+                <property name="fill_level">1</property>
+                <property name="round_digits">16</property>
                 <property name="draw_value">False</property>
               </object>
               <packing>
@@ -239,5 +241,10 @@ audio-volume-medium</property>
         </child>
       </object>
     </child>
+  </object>
+  <object class="GtkAdjustment" id="ScaleAdjustment">
+    <property name="upper">1</property>
+    <property name="step_increment">0.01</property>
+    <property name="page_increment">0.050000000000000003</property>
   </object>
 </interface>
