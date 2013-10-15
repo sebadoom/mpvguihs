@@ -15,7 +15,8 @@ import Graphics.UI.Gtk.Selectors.FileChooser
 
 data App = App {
       appHandles :: Handles,
-      appPlayer  :: Maybe (IORef Player)
+      appPlayer  :: Maybe (IORef Player), 
+      appToggleSigId :: Maybe (ConnectId ToggleToolButton)
 }
 
 volumeChanged :: IORef App -> Double -> IO ()
@@ -27,7 +28,6 @@ openFile appRef filename = do
   drawWin <- widgetGetDrawWindow $ videoArea $ appHandles app
   wid <- liftM fromNativeWindowId $ drawableGetID drawWin
   playerRef <- mpvPlay wid filename ()
-  toggleToolButtonSetActive (playButton $ appHandles app) True
   writeIORef appRef (app { appPlayer = Just playerRef })
 
 showOpenDialog :: IORef App -> IO ()
@@ -48,13 +48,14 @@ showOpenDialog appRef = do
 
 playToggle :: IORef App -> IO ()
 playToggle appRef = do
+  putStrLn "lol"
   app <- readIORef appRef
   pressed <- toggleToolButtonGetActive (playButton $ appHandles app)
   
   case (appPlayer app) of
     Just p -> if pressed 
-              then mpvPause p
-              else mpvUnpause p
+              then mpvUnpause p
+              else mpvPause p
     Nothing -> return ()
 
 seek :: IORef App -> Double -> IO ()
@@ -69,12 +70,13 @@ connectSignals appRef = do
   let hs = appHandles app
 
   onToolButtonClicked (openButton hs) $ showOpenDialog appRef
-  onToolButtonToggled (playButton hs) $ playToggle appRef
+  id <- afterToolButtonToggled (playButton hs) $ playToggle appRef
                       
   onAdjustBounds (scale hs) $ seek appRef
 
   onDestroy (mainWindow hs) mainQuit
-  return ()
+  
+  writeIORef appRef app { appToggleSigId = Just id }
 
 prepareUI hs = do
   -- TODO: show black background for video area
@@ -84,14 +86,32 @@ updateUI :: IORef App -> IO Bool
 updateUI appRef = do
   app <- readIORef appRef
   let hs = appHandles app
-  when (isJust $ appPlayer app) $ do
-    let p = fromJust $ appPlayer app
-    status <- mpvGetPlayStatus p
-    case status of
-      Nothing -> return ()
-      Just s  -> do
-        let ratio = (playStatusPos s) / (playStatusLength s)
-        rangeSetValue (scale hs) ratio
+  let toggleSigId = fromJust $ appToggleSigId app
+
+  signalBlock toggleSigId
+
+  if (isJust $ appPlayer app)
+     then do
+       widgetSetSensitive (scale hs) True
+       widgetSetSensitive (playButton hs) True
+
+       let p = fromJust $ appPlayer app
+       status <- mpvGetPlayStatus p
+       case status of
+         Nothing -> return ()
+         Just s  -> do
+           let ratio = (playStatusPos s) / (playStatusLength s)
+           rangeSetValue (scale hs) ratio
+           set (playButton hs) [toggleToolButtonActive := 
+                               (not $ playStatusPaused s)]
+
+     else do 
+       rangeSetValue (scale hs) 0.0
+       widgetSetSensitive (scale hs) False 
+       set (playButton hs) [toggleToolButtonActive := False]
+       widgetSetSensitive (playButton hs) False
+
+  signalUnblock toggleSigId
                  
   return True
 
@@ -101,13 +121,13 @@ main = do
   builderAddFromFile builder "main-gtk2.ui"
   hs <- $(getHandlesExp [| builder |])
 
-  appRef <- newIORef $ App hs Nothing
+  appRef <- newIORef $ App hs Nothing Nothing
 
   connectSignals appRef
   prepareUI hs
   widgetShowAll (mainWindow hs)
 
-  idleAdd (updateUI appRef) priorityDefaultIdle
+  timeoutAdd (updateUI appRef) 50
 
   mainGUI
   
