@@ -57,6 +57,12 @@ playToggle appRef = do
               else mpvUnpause p
     Nothing -> return ()
 
+seek :: IORef App -> Double -> IO ()
+seek appRef value = do
+  app <- readIORef appRef
+  when (isJust $ appPlayer app) $ 
+    mpvSeek (fromJust $ appPlayer app) value
+
 connectSignals :: IORef App -> IO ()
 connectSignals appRef = do
   app <- readIORef appRef
@@ -64,6 +70,9 @@ connectSignals appRef = do
 
   onToolButtonClicked (openButton hs) $ showOpenDialog appRef
   onToolButtonToggled (playButton hs) $ playToggle appRef
+                      
+  onAdjustBounds (scale hs) $ seek appRef
+
   onDestroy (mainWindow hs) mainQuit
   return ()
 

@@ -60,8 +60,7 @@ statusThread writeHandle readHandle inmv outmv = forever $ do
   hPutStrLn writeHandle $ concat ["print_text \"", 
                                   cmdPrefix, 
                                   "${=length} ${=time-pos}\""]
-  hFlush writeHandle
-  
+    
   catch (parseLines readHandle outmv) printException
 
   threadDelay 250000
@@ -84,7 +83,9 @@ mpvPlay wid filename ignored = do
              Nothing Nothing Nothing (Just outWrite) Nothing 
 
   inpfd <- openFd fifoPath WriteOnly Nothing defaultFileFlags
+  
   inp <- fdToHandle inpfd
+  hSetBuffering inp NoBuffering
 
   inmv <- newEmptyMVar
   outmv <- newEmptyMVar
@@ -97,8 +98,7 @@ mpvPause :: IORef Player -> IO ()
 mpvPause playerRef = do
   player <- readIORef playerRef
   hPutStrLn (playerCmdIn player) "cycle pause"
-  hFlush (playerCmdIn player)
-
+  
 mpvUnpause :: IORef Player -> IO ()
 mpvUnpause = mpvPause
 
@@ -109,14 +109,16 @@ mpvVolumeChange :: IORef Player -> Float -> IO ()
 mpvVolumeChange player volume = undefined
 
 mpvSeek :: IORef Player -> Double -> IO ()
-mpvSeek player ratio = undefined
+mpvSeek player ratio = do
+  p <- readIORef player
+  let percent = ratio * 100
+  hPutStrLn (playerCmdIn p) $ printf "seek %f absolute-percent" percent
 
 mpvStop :: IORef Player -> IO ()
 mpvStop playerRef = do
   p <- readIORef playerRef
   hPutStrLn (playerCmdIn p) "stop"
-  hFlush (playerCmdIn p)
-
+  
 mpvGetPlayStatus :: IORef Player -> IO (Maybe PlayStatus)
 mpvGetPlayStatus playerRef = do
   p <- readIORef playerRef
