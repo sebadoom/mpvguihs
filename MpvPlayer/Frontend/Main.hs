@@ -78,9 +78,19 @@ connectSignals appRef = do
   
   writeIORef appRef app { appToggleSigId = Just id }
 
+prepareUI :: Handles -> IO Handles
 prepareUI hs = do
   -- TODO: show black background for video area
-  return ()
+
+  -- HACK: volume button shows no icon when loaded from Glade.
+  p <- widgetGetParent (volumeButton hs)
+  let box = castToBox $ fromJust p
+  widgetDestroy (volumeButton hs)
+  volBut <- volumeButtonNew
+  boxPackEnd box volBut PackNatural 0
+
+  return $ hs { volumeButton = volBut }
+
 
 updateUI :: IORef App -> IO Bool
 updateUI appRef = do
@@ -119,12 +129,12 @@ main = do
   initGUI
   builder <- builderNew
   builderAddFromFile builder "main-gtk2.ui"
-  hs <- $(getHandlesExp [| builder |])
+  hs <- prepareUI =<< $(getHandlesExp [| builder |])
 
   appRef <- newIORef $ App hs Nothing Nothing
 
   connectSignals appRef
-  prepareUI hs
+
   widgetShowAll (mainWindow hs)
 
   timeoutAdd (updateUI appRef) 50
