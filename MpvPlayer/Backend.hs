@@ -26,10 +26,7 @@ data Player = Player {
       playerCmdIn :: Handle,
 
       playerOutWrite :: Handle,
-      playerOutRead :: Handle,
-
-      playerThreadIn :: MVar String,
-      playerThreadOut :: MVar PlayStatus
+      playerOutRead :: Handle
 }
 
 fifoPath :: String
@@ -45,38 +42,39 @@ buildArgs wid fifo filename = ["--wid=" ++ (printf "0x%x" wid),
 --                               "--slave-broken",
                                filename]
 
-parseLines readHandle outmv = do
-  ready <- hWaitForInput readHandle 50
-  when ready $ do
-    line <- hGetLine readHandle 
-    let status = stripPrefix cmdPrefix line
-    case status of
-      Nothing -> putStrLn line
-      Just i  -> do
-        let [len, r, p, m, vol] = words i
-            len' = fromMaybe 0.0 $ readMaybe len
-            r' = fromMaybe 0.0 $ readMaybe r
-            paused = p == "yes"
-            muted = m == "yes"
-            vol' = round $ (fromMaybe 0.0 $ readMaybe vol :: Double)
-            
-        tryTakeMVar outmv
-        putMVar outmv $ PlayStatus paused len' r' muted vol'
+parseLines :: Maybe PlayStatus -> Handle -> IO (Maybe PlayStatus)
+parseLines ps readHandle = do
+  ready <- hReady readHandle
+  if ready
+    then do
+      line <- hGetLine readHandle 
+      let status = stripPrefix cmdPrefix line
+      case status of
+        Nothing -> putStrLn line >> parseLines ps readHandle
+        Just i  -> 
+          let [len, r, p, m, vol] = words i
+              len' = fromMaybe 0.0 $ readMaybe len
+              r' = fromMaybe 0.0 $ readMaybe r
+              paused = p == "yes"
+              muted = m == "yes"
+              vol' = round $ (fromMaybe 0.0 $ readMaybe vol :: Double)
+          in parseLines (Just $ PlayStatus paused len' r' muted vol') readHandle
 
-    parseLines readHandle outmv
+    else return ps
 
-statusThread writeHandle readHandle inmv outmv = forever $ do
-  hPutStrLn writeHandle $ concat ["print_text \"", 
-                                  cmdPrefix, 
-                                  "${=length} ${=time-pos} ${pause} " ++
-                                  "${mute} ${volume}\""]
+mpvGetPlayStatus :: IORef Player -> IO (Maybe PlayStatus)
+mpvGetPlayStatus playerRef = do
+  p <- readIORef playerRef
+
+  hPutStrLn (playerCmdIn p) $ concat ["print_text \"", 
+                                      cmdPrefix, 
+                                      "${=length} ${=time-pos} ${pause} " ++
+                                      "${mute} ${volume}\""]
     
-  catch (parseLines readHandle outmv) printException
+  catch (parseLines Nothing $ playerOutRead p) $ printException
 
-  threadDelay 50000
-
-  where printException :: SomeException -> IO ()
-        printException e = print e
+  where printException :: SomeException -> IO (Maybe PlayStatus)
+        printException e = print e >> return Nothing
 
 mpvPlay :: Word32 -> FilePath -> c -> IO (IORef Player)
 mpvPlay wid filename ignored = do
@@ -99,26 +97,25 @@ mpvPlay wid filename ignored = do
   inp <- fdToHandle inpfd
   hSetBuffering inp NoBuffering
 
-  inmv <- newEmptyMVar
-  outmv <- newEmptyMVar
-
-  forkIO $ statusThread inp outRead inmv outmv
-
-  newIORef $ Player process inp outWrite outRead inmv outmv
+  newIORef $ Player process inp outWrite outRead
 
 mpvPause :: IORef Player -> IO ()
 mpvPause playerRef = do
   player <- readIORef playerRef
-  status <- readMVar (playerThreadOut player)
-  when (not $ playStatusPaused status) $ 
-    hPutStrLn (playerCmdIn player) "cycle pause"
+  status <- mpvGetPlayStatus playerRef
+  case status of
+    Nothing -> putStrLn "BUG!"
+    Just s ->  when (not $ playStatusPaused s) $ 
+                 hPutStrLn (playerCmdIn player) "cycle pause"
   
 mpvUnpause :: IORef Player -> IO ()
 mpvUnpause playerRef = do
   player <- readIORef playerRef
-  status <- readMVar (playerThreadOut player)
-  when (playStatusPaused status) $ 
-    hPutStrLn (playerCmdIn player) "cycle pause"
+  status <- mpvGetPlayStatus playerRef
+  case status of 
+    Nothing -> putStrLn "BUG!"
+    Just s -> when (playStatusPaused s) $ 
+                hPutStrLn (playerCmdIn player) "cycle pause"
 
 mpvKeyPress :: IORef Player -> Word32 -> IO ()
 mpvKeyPress player key = undefined
@@ -145,11 +142,6 @@ mpvSetVolume playerRef vol = do
   p <- readIORef playerRef
   hPutStrLn (playerCmdIn p) $ "set volume " ++ show vol
   
-mpvGetPlayStatus :: IORef Player -> IO (Maybe PlayStatus)
-mpvGetPlayStatus playerRef = do
-  p <- readIORef playerRef
-  tryTakeMVar $ playerThreadOut p
-
 mpvTerminate :: IORef Player -> IO ()
 mpvTerminate playerRef = do
   p <- readIORef playerRef
@@ -158,3 +150,4 @@ mpvTerminate playerRef = do
   hClose h 
   threadDelay 250000
   terminateProcess (playerProcess p)
+
