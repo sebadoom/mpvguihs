@@ -4,7 +4,6 @@ import Data.List
 import Data.Word
 import Data.IORef
 import Data.Maybe
-import Data.Char
 import System.Process
 import System.IO
 import System.Posix.IO
@@ -12,13 +11,14 @@ import Text.Printf
 import Text.Read
 import Control.Concurrent 
 import Control.Monad
-import Prelude hiding (catch)
 import Control.Exception
 
 data PlayStatus = PlayStatus {
       playStatusPaused :: Bool,
       playStatusLength :: Double,
-      playStatusPos :: Double
+      playStatusPos :: Double,
+      playStatusMuted :: Bool,
+      playStatusVol :: Int
 } deriving (Show)
 
 data Player = Player {
@@ -32,7 +32,10 @@ data Player = Player {
       playerThreadOut :: MVar PlayStatus
 }
 
+fifoPath :: String
 fifoPath = "/tmp/mpvguihs.pipe"
+
+cmdPrefix :: String
 cmdPrefix = "mpvguihs command response: "
 
 buildArgs :: Word32 -> FilePath -> FilePath -> [String]
@@ -50,19 +53,23 @@ parseLines readHandle outmv = do
     case status of
       Nothing -> putStrLn line
       Just i  -> do
-        let [len, r, p] = words i
-        let len' = fromMaybe 0.0 $ readMaybe len
-        let r' = fromMaybe 0.0 $ readMaybe r
-        let paused = p == "yes"
+        let [len, r, p, m, vol] = words i
+            len' = fromMaybe 0.0 $ readMaybe len
+            r' = fromMaybe 0.0 $ readMaybe r
+            paused = p == "yes"
+            muted = m == "yes"
+            vol' = round $ (fromMaybe 0.0 $ readMaybe vol :: Double)
+            
         tryTakeMVar outmv
-        putMVar outmv $ PlayStatus paused len' r'
+        putMVar outmv $ PlayStatus paused len' r' muted vol'
 
     parseLines readHandle outmv
 
 statusThread writeHandle readHandle inmv outmv = forever $ do
   hPutStrLn writeHandle $ concat ["print_text \"", 
                                   cmdPrefix, 
-                                  "${=length} ${=time-pos} ${pause}\""]
+                                  "${=length} ${=time-pos} ${pause} " ++
+                                  "${mute} ${volume}\""]
     
   catch (parseLines readHandle outmv) printException
 
@@ -116,9 +123,6 @@ mpvUnpause playerRef = do
 mpvKeyPress :: IORef Player -> Word32 -> IO ()
 mpvKeyPress player key = undefined
 
-mpvVolumeChange :: IORef Player -> Float -> IO ()
-mpvVolumeChange player volume = undefined
-
 mpvSeek :: IORef Player -> Double -> IO ()
 mpvSeek player ratio = do
   p <- readIORef player
@@ -129,6 +133,17 @@ mpvStop :: IORef Player -> IO ()
 mpvStop playerRef = do
   p <- readIORef playerRef
   hPutStrLn (playerCmdIn p) "stop"
+
+mpvSetMuted :: IORef Player -> Bool -> IO ()
+mpvSetMuted playerRef val = do
+  p <- readIORef playerRef
+  let val' = if val then "yes" else "no"
+  hPutStrLn (playerCmdIn p) $ "set mute " ++ val'
+
+mpvSetVolume :: IORef Player -> Int -> IO ()
+mpvSetVolume playerRef vol = do
+  p <- readIORef playerRef
+  hPutStrLn (playerCmdIn p) $ "set volume " ++ show vol
   
 mpvGetPlayStatus :: IORef Player -> IO (Maybe PlayStatus)
 mpvGetPlayStatus playerRef = do

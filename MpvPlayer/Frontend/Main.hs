@@ -8,19 +8,13 @@ import MpvPlayer.Backend
 import Data.IORef
 import Data.Maybe
 import Control.Monad
-import Control.Concurrent
-
-import Graphics.UI.Gtk.Selectors.FileChooserDialog
-import Graphics.UI.Gtk.Selectors.FileChooser
 
 data App = App {
       appHandles :: Handles,
       appPlayer  :: Maybe (IORef Player), 
-      appToggleSigId :: Maybe (ConnectId ToggleToolButton)
+      appToggleSigId :: Maybe (ConnectId ToggleToolButton),
+      appVolSigId :: Maybe (ConnectId VolumeButton)
 }
-
-volumeChanged :: IORef App -> Double -> IO ()
-volumeChanged appRef value = return ()
 
 openFile :: IORef App -> FilePath -> IO ()
 openFile appRef filename = do
@@ -64,19 +58,28 @@ seek appRef value = do
   when (isJust $ appPlayer app) $ 
     mpvSeek (fromJust $ appPlayer app) value
 
+setVolume :: IORef App -> Double -> IO ()
+setVolume appRef vol = do
+  app <- readIORef appRef
+  when (isJust $ appPlayer app) $
+    mpvSetVolume (fromJust $ appPlayer app) $ round (vol * 100)
+
 connectSignals :: IORef App -> IO ()
 connectSignals appRef = do
   app <- readIORef appRef
   let hs = appHandles app
 
   onToolButtonClicked (openButton hs) $ showOpenDialog appRef
-  id <- afterToolButtonToggled (playButton hs) $ playToggle appRef
+  idPlay <- afterToolButtonToggled (playButton hs) $ playToggle appRef
                       
   onAdjustBounds (scale hs) $ seek appRef
 
+  idVol <- on (volumeButton hs) scaleButtonValueChanged $ setVolume appRef
+
   onDestroy (mainWindow hs) mainQuit
   
-  writeIORef appRef app { appToggleSigId = Just id }
+  writeIORef appRef app { appToggleSigId = Just idPlay,
+                          appVolSigId = Just idVol }
 
 prepareUI :: Handles -> IO Handles
 prepareUI hs = do
@@ -91,14 +94,13 @@ prepareUI hs = do
 
   return $ hs { volumeButton = volBut }
 
-
 updateUI :: IORef App -> IO Bool
 updateUI appRef = do
   app <- readIORef appRef
   let hs = appHandles app
-  let toggleSigId = fromJust $ appToggleSigId app
 
-  signalBlock toggleSigId
+  signalBlock $ fromJust $ appToggleSigId app
+  signalBlock $ fromJust $ appVolSigId app
 
   if (isJust $ appPlayer app)
      then do
@@ -114,6 +116,8 @@ updateUI appRef = do
            rangeSetValue (scale hs) ratio
            set (playButton hs) [toggleToolButtonActive := 
                                (not $ playStatusPaused s)]
+           set (volumeButton hs) [scaleButtonValue := 
+                                  (fromIntegral $ playStatusVol s) / 100]
 
      else do 
        rangeSetValue (scale hs) 0.0
@@ -121,17 +125,19 @@ updateUI appRef = do
        set (playButton hs) [toggleToolButtonActive := False]
        widgetSetSensitive (playButton hs) False
 
-  signalUnblock toggleSigId
+  signalUnblock $ fromJust $ appToggleSigId app
+  signalUnblock $ fromJust $ appVolSigId app
                  
   return True
 
+main :: IO ()
 main = do
   initGUI
   builder <- builderNew
   builderAddFromFile builder "main-gtk2.ui"
   hs <- prepareUI =<< $(getHandlesExp [| builder |])
 
-  appRef <- newIORef $ App hs Nothing Nothing
+  appRef <- newIORef $ App hs Nothing Nothing Nothing
 
   connectSignals appRef
 
