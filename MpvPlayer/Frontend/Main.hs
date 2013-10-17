@@ -7,13 +7,15 @@ import MpvPlayer.Backend
 
 import Data.IORef
 import Data.Maybe
+import Data.Time.Format
 import Control.Monad
 
 data App = App {
       appHandles :: Handles,
       appPlayer  :: Maybe (IORef Player), 
       appToggleSigId :: Maybe (ConnectId ToggleToolButton),
-      appVolSigId :: Maybe (ConnectId VolumeButton)
+      appVolSigId :: Maybe (ConnectId VolumeButton),
+      appStatusContextId :: ContextId
 }
 
 openFile :: IORef App -> FilePath -> IO ()
@@ -94,6 +96,16 @@ prepareUI hs = do
 
   return $ hs { volumeButton = volBut }
 
+formatPlayMessage :: Double -> Double -> String
+formatPlayMessage pos total = concat 
+    [str $ hours pos  ,":", str $ mins pos  ,":",str $ secs pos, " / ",
+     str $ hours total,":", str $ mins total,":",str $ secs total]
+    where comp t = round $ 60 * (snd $ properFraction t)
+          str t = if t < 10 then "0" ++ show t else show t
+          secs t = comp $ t / 60 :: Int
+          mins t = comp $ t / 60 / 60 :: Int
+          hours t = round $ t / 60 / 60 / 60 :: Int
+
 updateUI :: IORef App -> IO Bool
 updateUI appRef = do
   app <- readIORef appRef
@@ -109,21 +121,24 @@ updateUI appRef = do
 
        let p = fromJust $ appPlayer app
        status <- mpvGetPlayStatus p
-       case status of
-         Nothing -> return ()
-         Just s  -> do
-           let ratio = (playStatusPos s) / (playStatusLength s)
-           rangeSetValue (scale hs) ratio
-           set (playButton hs) [toggleToolButtonActive := 
-                               (not $ playStatusPaused s)]
-           set (volumeButton hs) [scaleButtonValue := 
-                                  (fromIntegral $ playStatusVol s) / 100]
-
+       when (isJust status) $ do
+         let s = fromJust status
+         let ratio = (playStatusPos s) / (playStatusLength s)
+         rangeSetValue (scale hs) ratio
+         set (playButton hs) [toggleToolButtonActive := 
+                              (not $ playStatusPaused s)]
+         set (volumeButton hs) [scaleButtonValue := 
+                                (fromIntegral $ playStatusVol s) / 100]
+         statusbarPop (statusbar hs) (appStatusContextId app)
+         void $ statusbarPush (statusbar hs) (appStatusContextId app) $ 
+           formatPlayMessage (playStatusPos s) (playStatusLength s)
+         
      else do 
        rangeSetValue (scale hs) 0.0
        widgetSetSensitive (scale hs) False 
        set (playButton hs) [toggleToolButtonActive := False]
        widgetSetSensitive (playButton hs) False
+       statusbarRemoveAll (statusbar hs) (fromIntegral $ appStatusContextId app)
 
   signalUnblock $ fromJust $ appToggleSigId app
   signalUnblock $ fromJust $ appVolSigId app
@@ -137,7 +152,9 @@ main = do
   builderAddFromFile builder "main-gtk2.ui"
   hs <- prepareUI =<< $(getHandlesExp [| builder |])
 
-  appRef <- newIORef $ App hs Nothing Nothing Nothing
+  statusId <- statusbarGetContextId (statusbar hs) "SimpleStatus" 
+
+  appRef <- newIORef $ App hs Nothing Nothing Nothing statusId
 
   connectSignals appRef
 

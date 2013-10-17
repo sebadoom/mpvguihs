@@ -19,5 +19,5 @@ executable mpvguihs
   main-is:             MpvPlayer/Frontend/Main.hs
   other-modules:       MpvPlayer.Frontend.GUITemplates, MpvPlayer.Backend
   build-depends:       base == 4.6.*, gtk == 0.12.*, template-haskell, process, 
-                       unix
+                       unix, time
 
