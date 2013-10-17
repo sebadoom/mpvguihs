@@ -7,7 +7,6 @@ import MpvPlayer.Backend
 
 import Data.IORef
 import Data.Maybe
-import Data.Time.Format
 import Control.Monad
 
 data App = App {
