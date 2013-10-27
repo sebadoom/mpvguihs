@@ -24,9 +24,10 @@ data App = App {
 
 confFile :: IO FilePath
 confFile = do
-  h <- getAppUserDataDirectory "mpvguihs"
-  createDirectoryIfMissing True h
-  return $ h `combine` "mpvguihs.conf"
+  dir <- getAppUserDataDirectory "mpvguihs"
+  exists <- doesDirectoryExist dir
+  when (not exists) $ createDirectoryIfMissing True dir
+  return $ dir `combine` "mpvguihs.conf"
 
 openFile :: IORef App -> FilePath -> IO ()
 openFile appRef filename = do
@@ -36,6 +37,7 @@ openFile appRef filename = do
     mpvStop p
     mpvTerminate p
   drawWin <- widgetGetDrawWindow $ videoArea $ appHandles app
+  drawWindowSetAcceptFocus drawWin True
   wid <- liftM fromNativeWindowId $ drawableGetID drawWin
   playerRef <- mpvPlay wid filename (appCmdLine app)
   writeIORef appRef (app { appPlayer = Just playerRef })
@@ -227,9 +229,11 @@ main = do
 
   widgetShowAll (mainWindow hs)
 
-  timeoutAdd (updateUI appRef) 50
+  timeoutId <- timeoutAdd (updateUI appRef) 50
 
   mainGUI
+
+  timeoutRemove timeoutId
   
   putStrLn "Closing..."
   app <- readIORef appRef
