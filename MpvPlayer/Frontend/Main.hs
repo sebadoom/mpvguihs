@@ -20,6 +20,10 @@ data App = App {
 openFile :: IORef App -> FilePath -> IO ()
 openFile appRef filename = do
   app <- readIORef appRef
+  when (isJust $ appPlayer app) $ do
+    let p = fromJust $ appPlayer app
+    mpvStop p
+    mpvTerminate p
   drawWin <- widgetGetDrawWindow $ videoArea $ appHandles app
   wid <- liftM fromNativeWindowId $ drawableGetID drawWin
   playerRef <- mpvPlay wid filename ()
