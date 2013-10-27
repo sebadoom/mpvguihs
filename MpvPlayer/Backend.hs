@@ -7,6 +7,7 @@ import Data.Maybe
 import System.Process
 import System.IO
 import System.Posix.IO
+import System.Directory
 import Text.Printf
 import Text.Read
 import Control.Concurrent 
@@ -24,13 +25,11 @@ data PlayStatus = PlayStatus {
 data Player = Player {
       playerProcess :: ProcessHandle,
       playerCmdIn :: Handle,
+      playerCmdInFilePath :: FilePath,
 
       playerOutWrite :: Handle,
       playerOutRead :: Handle
 }
-
-fifoPath :: String
-fifoPath = "/tmp/mpvguihs.pipe"
 
 cmdPrefix :: String
 cmdPrefix = "mpvguihs command response: "
@@ -79,11 +78,16 @@ mpvGetPlayStatus playerRef = do
 
 mpvPlay :: Word32 -> FilePath -> String -> IO (IORef Player)
 mpvPlay wid filename extraArgs = do
-  let args = buildArgs wid fifoPath filename extraArgs
+  tmpDir <- getTemporaryDirectory
+
+  (cmdFile, cmdHandle) <- openTempFile tmpDir "mpvguihs"
+  hClose cmdHandle         
+  removeFile cmdFile
+  system $ "mkfifo " ++ cmdFile
+
+  let args = buildArgs wid cmdFile filename extraArgs
   putStrLn $ "Launching mpv with args: " ++ show args
   
-  system $ "mkfifo " ++ fifoPath
-
   (readFd, writeFd) <- createPipe
   outWrite <- fdToHandle writeFd
   outRead <- fdToHandle readFd
@@ -93,12 +97,11 @@ mpvPlay wid filename extraArgs = do
   process <- runProcess "mpv" args 
              Nothing Nothing Nothing (Just outWrite) (Just errWrite)
 
-  inpfd <- openFd fifoPath WriteOnly Nothing defaultFileFlags
-  
-  inp <- fdToHandle inpfd
-  hSetBuffering inp NoBuffering
+  cmdFd <- openFd cmdFile WriteOnly Nothing defaultFileFlags
+  cmdHandle' <- fdToHandle cmdFd
+  hSetBuffering cmdHandle' NoBuffering
 
-  newIORef $ Player process inp outWrite outRead
+  newIORef $ Player process cmdHandle' cmdFile outWrite outRead
 
 mpvPause :: IORef Player -> IO ()
 mpvPause playerRef = do
@@ -152,6 +155,8 @@ mpvTerminate playerRef = do
   hClose h 
   hClose $ playerOutRead p
   hClose $ playerOutWrite p
+
+  removeFile $ playerCmdInFilePath p
 
   threadDelay 250000
   terminateProcess (playerProcess p)
