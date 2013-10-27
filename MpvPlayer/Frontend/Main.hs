@@ -135,6 +135,8 @@ prepareUI :: Handles -> IO Handles
 prepareUI hs = do
   -- TODO: show black background for video area
 
+  windowSetTitle (mainWindow hs) "mpv GUI"
+
   -- HACK: volume button shows no icon when loaded from Glade.
   p <- widgetGetParent (volumeButton hs)
   let box = castToBox $ fromJust p
