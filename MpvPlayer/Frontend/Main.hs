@@ -7,6 +7,10 @@ import MpvPlayer.Backend
 
 import Data.IORef
 import Data.Maybe
+import Data.Char
+import System.Directory
+import System.FilePath
+import qualified System.IO as SIO
 import Control.Monad
 
 data App = App {
@@ -14,8 +18,15 @@ data App = App {
       appPlayer  :: Maybe (IORef Player), 
       appToggleSigId :: Maybe (ConnectId ToggleToolButton),
       appVolSigId :: Maybe (ConnectId VolumeButton),
-      appStatusContextId :: ContextId
+      appStatusContextId :: ContextId,
+      appCmdLine :: String
 }
+
+confFile :: IO FilePath
+confFile = do
+  h <- getAppUserDataDirectory "mpvguihs"
+  createDirectoryIfMissing True h
+  return $ h `combine` "mpvguihs.conf"
 
 openFile :: IORef App -> FilePath -> IO ()
 openFile appRef filename = do
@@ -26,7 +37,7 @@ openFile appRef filename = do
     mpvTerminate p
   drawWin <- widgetGetDrawWindow $ videoArea $ appHandles app
   wid <- liftM fromNativeWindowId $ drawableGetID drawWin
-  playerRef <- mpvPlay wid filename ()
+  playerRef <- mpvPlay wid filename (appCmdLine app)
   writeIORef appRef (app { appPlayer = Just playerRef })
 
 showOpenDialog :: IORef App -> IO ()
@@ -36,7 +47,7 @@ showOpenDialog appRef = do
             (Just $ mainWindow $ appHandles app) FileChooserActionOpen []
   dialogAddButton dialog "gtk-cancel" $ ResponseUser 0
   dialogAddButton dialog "gtk-open" $ ResponseUser 1
-  (ResponseUser resp) <- dialogRun dialog
+  ResponseUser resp <- dialogRun dialog
   
   when (resp == 1) $ do file <- fileChooserGetFilename dialog
                         case file of
@@ -44,6 +55,37 @@ showOpenDialog appRef = do
                           Nothing -> return ()
  
   widgetDestroy dialog
+
+setCmdLine appRef cmdLine = do
+  modifyIORef appRef $ \app -> app { appCmdLine = cmdLine }
+  cf <- confFile
+  h <- SIO.openFile cf SIO.WriteMode
+  SIO.hPutStr h cmdLine
+  SIO.hClose h
+
+showSettingsDialog :: IORef App -> IO ()
+showSettingsDialog appRef = do
+  app <- readIORef appRef
+  let hs = appHandles app
+  let s = settingsDialog $ appHandles app
+  entrySetText (cmdLineEntry hs) (appCmdLine app)
+  r <- dialogRun s
+  print r
+  case r of
+    ResponseUser 1 -> do 
+      cmdLine <- entryGetText (cmdLineEntry hs)
+      setCmdLine appRef cmdLine
+
+    _              -> return ()
+
+  widgetHide s
+
+showAboutDialog :: IORef App -> IO ()
+showAboutDialog appRef = do
+  app <- readIORef appRef
+  let d = aboutDialog $ appHandles app
+  void $ dialogRun d
+  widgetHide d
 
 playToggle :: IORef App -> IO ()
 playToggle appRef = do
@@ -82,6 +124,9 @@ connectSignals appRef = do
   idVol <- on (volumeButton hs) scaleButtonValueChanged $ setVolume appRef
 
   onDestroy (mainWindow hs) mainQuit
+
+  onToolButtonClicked (aboutButton hs) $ showAboutDialog appRef
+  onToolButtonClicked (settingsButton hs) $ showSettingsDialog appRef
   
   writeIORef appRef app { appToggleSigId = Just idPlay,
                           appVolSigId = Just idVol }
@@ -96,6 +141,10 @@ prepareUI hs = do
   widgetDestroy (volumeButton hs)
   volBut <- volumeButtonNew
   boxPackEnd box volBut PackNatural 0
+
+  let s = settingsDialog hs
+  dialogAddButton s "gtk-cancel" $ ResponseUser 0
+  dialogAddButton s "gtk-ok" $ ResponseUser 1
 
   return $ hs { volumeButton = volBut }
 
@@ -148,6 +197,17 @@ updateUI appRef = do
                  
   return True
 
+loadCmdLine :: IO String
+loadCmdLine = do
+  cf <- confFile 
+  exists <- doesFileExist cf
+  if exists 
+     then do str <- readFile cf
+             return $ case filter (any isAlpha) $ lines str of
+               (l:_) -> l
+               _     -> ""
+     else return ""
+
 main :: IO ()
 main = do
   initGUI
@@ -157,7 +217,9 @@ main = do
 
   statusId <- statusbarGetContextId (statusbar hs) "SimpleStatus" 
 
-  appRef <- newIORef $ App hs Nothing Nothing Nothing statusId
+  cmdLine <- loadCmdLine
+
+  appRef <- newIORef $ App hs Nothing Nothing Nothing statusId cmdLine
 
   connectSignals appRef
 

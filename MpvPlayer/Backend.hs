@@ -35,12 +35,13 @@ fifoPath = "/tmp/mpvguihs.pipe"
 cmdPrefix :: String
 cmdPrefix = "mpvguihs command response: "
 
-buildArgs :: Word32 -> FilePath -> FilePath -> [String]
-buildArgs wid fifo filename = ["--wid=" ++ (printf "0x%x" wid), 
-                               "--input-file=" ++ fifo, 
-                               "--status-msg=",
---                               "--slave-broken",
-                               filename]
+buildArgs :: Word32 -> FilePath -> FilePath -> String -> [String]
+buildArgs wid fifo filename extraArgs = 
+  ["--wid=" ++ (printf "0x%x" wid), 
+   "--input-file=" ++ fifo, 
+   "--status-msg=",
+   extraArgs,
+   filename]
 
 parseLines :: Maybe PlayStatus -> Handle -> IO (Maybe PlayStatus)
 parseLines ps readHandle = do
@@ -76,9 +77,9 @@ mpvGetPlayStatus playerRef = do
   where printException :: SomeException -> IO (Maybe PlayStatus)
         printException e = print e >> return Nothing
 
-mpvPlay :: Word32 -> FilePath -> c -> IO (IORef Player)
-mpvPlay wid filename ignored = do
-  let args = buildArgs wid fifoPath filename
+mpvPlay :: Word32 -> FilePath -> String -> IO (IORef Player)
+mpvPlay wid filename extraArgs = do
+  let args = buildArgs wid fifoPath filename extraArgs
   putStrLn $ "Launching mpv with args: " ++ show args
   
   system $ "mkfifo " ++ fifoPath
@@ -147,7 +148,11 @@ mpvTerminate playerRef = do
   p <- readIORef playerRef
   let h = playerCmdIn p
   hPutStrLn h "quit 0"
+
   hClose h 
+  hClose $ playerOutRead p
+  hClose $ playerOutWrite p
+
   threadDelay 250000
   terminateProcess (playerProcess p)
 
