@@ -13,6 +13,8 @@ import Text.Read
 import Control.Concurrent 
 import Control.Monad
 import Control.Exception
+import Graphics.X11
+import Graphics.X11.Xlib.Extras
 
 data PlayStatus = PlayStatus {
       playStatusPaused :: Bool,
@@ -23,6 +25,8 @@ data PlayStatus = PlayStatus {
 } deriving (Show)
 
 data Player = Player {
+      playerWid :: Word32,
+
       playerProcess :: ProcessHandle,
       playerCmdIn :: Handle,
       playerCmdInFilePath :: FilePath,
@@ -101,7 +105,7 @@ mpvPlay wid filename extraArgs = do
   cmdHandle' <- fdToHandle cmdFd
   hSetBuffering cmdHandle' NoBuffering
 
-  newIORef $ Player process cmdHandle' cmdFile outWrite outRead
+  newIORef $ Player wid process cmdHandle' cmdFile outWrite outRead
 
 mpvPause :: IORef Player -> IO ()
 mpvPause playerRef = do
@@ -121,8 +125,15 @@ mpvUnpause playerRef = do
     Just s -> when (playStatusPaused s) $ 
                 hPutStrLn (playerCmdIn player) "cycle pause"
 
-mpvKeyPress :: IORef Player -> Word32 -> IO ()
-mpvKeyPress player key = undefined
+mpvSetInputFocus :: IORef Player -> IO ()
+mpvSetInputFocus playerRef = do
+  player <- readIORef playerRef
+  let wid' = fromIntegral $ playerWid player
+  d <- openDisplay ""
+
+  (_,_,[wid]) <- queryTree d wid'
+  setInputFocus d wid revertToNone currentTime
+  putStrLn "Focus set"
 
 mpvSeek :: IORef Player -> Double -> IO ()
 mpvSeek player ratio = do
