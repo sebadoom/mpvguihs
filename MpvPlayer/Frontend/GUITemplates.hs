@@ -11,7 +11,8 @@ module MpvPlayer.Frontend.GUITemplates (
   module Graphics.UI.Gtk.Entry.HScale,
   module Graphics.UI.Gtk.Buttons.VolumeButton,
   module Graphics.UI.Gtk.Display.Statusbar,
-  module Graphics.UI.Gtk.Misc.DrawingArea
+  module Graphics.UI.Gtk.Misc.DrawingArea,
+  module Graphics.UI.Gtk.Layout.VBox
 ) where
 
 import Graphics.UI.Gtk
@@ -24,6 +25,7 @@ import Graphics.UI.Gtk.Entry.HScale
 import Graphics.UI.Gtk.Buttons.VolumeButton
 import Graphics.UI.Gtk.Display.Statusbar
 import Graphics.UI.Gtk.Misc.DrawingArea
+import Graphics.UI.Gtk.Layout.VBox
 
 import Control.Monad
 import Data.Char
@@ -33,6 +35,7 @@ import Language.Haskell.TH
 
 data Handles = Handles {
       mainWindow        :: Window,
+      mainBox           :: VBox,
       videoArea         :: DrawingArea,
       openButton        :: ToolButton,
       settingsButton    :: MenuToolButton,

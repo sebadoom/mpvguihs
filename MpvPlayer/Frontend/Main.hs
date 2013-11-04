@@ -30,18 +30,6 @@ confFile = do
   when (not exists) $ createDirectoryIfMissing True dir
   return $ dir `combine` "mpvguihs.conf"
 
-enterVideoAreaEvent :: IORef App -> EventM a Bool
-enterVideoAreaEvent appRef = do
-  app <- liftIO $ readIORef appRef
-  let player = appPlayer app
-  when (isJust player) $ do
-    let p = fromJust player
-    let w = mainWindow $ appHandles app
-    liftIO $ windowSetFocus w (Nothing :: Maybe Widget)
-    liftIO $ mpvSetInputFocus p
-
-  return True
-
 openFile :: IORef App -> FilePath -> IO ()
 openFile appRef filename = do
   app <- readIORef appRef
@@ -50,12 +38,22 @@ openFile appRef filename = do
     mpvStop p
     mpvTerminate p
 
+  let box = mainBox $ appHandles app
   let vidArea = videoArea $ appHandles app
-  on vidArea enterNotifyEvent $ enterVideoAreaEvent appRef
-  drawWin <- widgetGetDrawWindow vidArea
-  wid <- liftM fromNativeWindowId $ drawableGetID drawWin
+  (packing,padding,_) <- boxQueryChildPacking box vidArea
+  boxId <- get box (boxChildPosition vidArea)
+  containerRemove box vidArea
+  socket <- socketNew
+  boxPackStart box socket packing padding
+  boxReorderChild box socket boxId
+  set socket [widgetCanFocus := True, 
+              widgetSensitive := True]
+  widgetAddEvents socket [AllEventsMask]
+  widgetShow socket
+  on socket enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
+  wid <- socketGetId socket
 
-  playerRef <- mpvPlay wid filename (appCmdLine app)
+  playerRef <- mpvPlay (fromNativeWindowId wid) filename (appCmdLine app)
 
   writeIORef appRef (app { appPlayer = Just playerRef })
 
@@ -239,7 +237,7 @@ main = do
   statusId <- statusbarGetContextId (statusbar hs) "SimpleStatus" 
 
   cmdLine <- loadCmdLine
-
+  
   appRef <- newIORef $ App hs Nothing Nothing Nothing statusId cmdLine
 
   connectSignals appRef
