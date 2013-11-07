@@ -39,10 +39,10 @@ openFile appRef filename = do
     mpvTerminate p
 
   let box = mainBox $ appHandles app
-  let vidArea = videoArea $ appHandles app
-  (packing,padding,_) <- boxQueryChildPacking box vidArea
-  boxId <- get box (boxChildPosition vidArea)
-  containerRemove box vidArea
+  let bgImage = backgroundImage $ appHandles app
+  (packing,padding,_) <- boxQueryChildPacking box bgImage
+  boxId <- get box (boxChildPosition bgImage)
+  containerRemove box bgImage
   socket <- socketNew
   boxPackStart box socket packing padding
   boxReorderChild box socket boxId

@@ -133,11 +133,10 @@
           </packing>
         </child>
         <child>
-          <object class="GtkDrawingArea" id="VideoArea">
+          <object class="GtkImage" id="BackgroundImage">
             <property name="visible">True</property>
-            <property name="app_paintable">True</property>
-            <property name="can_focus">True</property>
-            <property name="events">GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK</property>
+            <property name="can_focus">False</property>
+            <property name="pixbuf">mpv-icon-big.png</property>
           </object>
           <packing>
             <property name="expand">True</property>

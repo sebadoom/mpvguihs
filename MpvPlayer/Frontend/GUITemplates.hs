@@ -26,6 +26,7 @@ import Graphics.UI.Gtk.Buttons.VolumeButton
 import Graphics.UI.Gtk.Display.Statusbar
 import Graphics.UI.Gtk.Misc.DrawingArea
 import Graphics.UI.Gtk.Layout.VBox
+import Graphics.UI.Gtk.Display.Image
 
 import Control.Monad
 import Data.Char
@@ -36,7 +37,7 @@ import Language.Haskell.TH
 data Handles = Handles {
       mainWindow        :: Window,
       mainBox           :: VBox,
-      videoArea         :: DrawingArea,
+      backgroundImage   :: Image,
       openButton        :: ToolButton,
       settingsButton    :: MenuToolButton,
       aboutButton       :: MenuToolButton,
