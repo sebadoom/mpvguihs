@@ -127,10 +127,19 @@ setVolume appRef vol = do
   when (isJust $ appPlayer app) $
     mpvSetVolume (fromJust $ appPlayer app) $ round (vol * 100)
 
+toggleFullscreen :: IORef App -> IO ()
+toggleFullscreen appRef = do
+  app <- readIORef appRef
+  when (isJust $ appPlayer app) $
+    mpvToggleFullscreen (fromJust $ appPlayer app)
+
 connectSignals :: IORef App -> IO ()
 connectSignals appRef = do
   app <- readIORef appRef
   let hs = appHandles app
+
+  onDestroy (mainWindow hs) mainQuit
+  onDestroy (fullscreenWindow hs) mainQuit
 
   onToolButtonClicked (openButton hs) $ showOpenDialog appRef
   idPlay <- afterToolButtonToggled (playButton hs) $ playToggle appRef
@@ -139,7 +148,7 @@ connectSignals appRef = do
 
   idVol <- on (volumeButton hs) scaleButtonValueChanged $ setVolume appRef
 
-  onDestroy (mainWindow hs) mainQuit
+  onToolButtonClicked (fullscreenButton hs) $ toggleFullscreen appRef
 
   onToolButtonClicked (aboutButton hs) $ showAboutDialog appRef
   onToolButtonClicked (settingsButton hs) $ showSettingsDialog appRef
@@ -176,6 +185,32 @@ formatPlayMessage pos total = concat
           mins t = comp $ t / 60 / 60 :: Int
           hours t = round $ t / 60 / 60 / 60 :: Int
 
+checkFullscreen :: IORef App -> PlayStatus -> IO ()
+checkFullscreen appRef status = do
+  app <- readIORef appRef
+  let fsWin = fullscreenWindow $ appHandles app
+  let normalWin = mainWindow $ appHandles app
+  let box = background $ appHandles app
+
+  let fsFlag = playStatusFullscreen status
+  fs <- widgetGetMapped fsWin
+
+  when (fsFlag && (not fs)) $ do
+    cs <- containerGetChildren box
+    let socket = head cs
+    widgetShowAll fsWin
+    widgetReparent socket fsWin
+    windowFullscreen fsWin
+    widgetHide normalWin
+
+  when ((not fsFlag) && fs) $ do
+    cs <- containerGetChildren fsWin
+    let socket = head cs
+    widgetReparent socket box
+    widgetShowAll normalWin
+    windowUnfullscreen fsWin
+    widgetHide fsWin
+
 updateUI :: IORef App -> IO Bool
 updateUI appRef = do
   app <- readIORef appRef
@@ -184,11 +219,14 @@ updateUI appRef = do
   signalBlock $ fromJust $ appToggleSigId app
   signalBlock $ fromJust $ appVolSigId app
 
-  if (isJust $ appPlayer app)
-     then do
-       widgetSetSensitive (scale hs) True
-       widgetSetSensitive (playButton hs) True
+  let playing = isJust $ appPlayer app
 
+  widgetSetSensitive (scale hs) playing
+  widgetSetSensitive (playButton hs) playing
+  widgetSetSensitive (fullscreenButton hs) playing
+
+  if playing
+     then do
        let p = fromJust $ appPlayer app
        status <- mpvGetPlayStatus p
        when (isJust status) $ do
@@ -203,11 +241,11 @@ updateUI appRef = do
          void $ statusbarPush (statusbar hs) (appStatusContextId app) $ 
            formatPlayMessage (playStatusPos s) (playStatusLength s)
          
+         checkFullscreen appRef s
+         
      else do 
        rangeSetValue (scale hs) 0.0
-       widgetSetSensitive (scale hs) False 
        set (playButton hs) [toggleToolButtonActive := False]
-       widgetSetSensitive (playButton hs) False
        statusbarRemoveAll (statusbar hs) (fromIntegral $ appStatusContextId app)
 
   signalUnblock $ fromJust $ appToggleSigId app

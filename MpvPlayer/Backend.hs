@@ -21,7 +21,8 @@ data PlayStatus = PlayStatus {
       playStatusLength :: Double,
       playStatusPos :: Double,
       playStatusMuted :: Bool,
-      playStatusVol :: Int
+      playStatusVol :: Int,
+      playStatusFullscreen :: Bool
 } deriving (Show)
 
 data Player = Player {
@@ -56,14 +57,19 @@ parseLines ps readHandle = do
       case status of
         Nothing -> putStrLn line >> parseLines ps readHandle
         Just i  -> 
-          let [len, r, p, m, vol] = words i
+          let [len, r, p, m, vol, fs] = words i
               len' = fromMaybe 0.0 $ readMaybe len
               r' = fromMaybe 0.0 $ readMaybe r
               paused = p == "yes"
               muted = m == "yes"
               vol' = round $ (fromMaybe 0.0 $ readMaybe vol :: Double)
-          in parseLines (Just $ PlayStatus paused len' r' muted vol') readHandle
-
+              fullscreen = fs == "yes"
+          in parseLines (Just $ PlayStatus paused 
+                                           len' 
+                                           r' 
+                                           muted 
+                                           vol' 
+                                           fullscreen) readHandle
     else return ps
 
 mpvGetPlayStatus :: IORef Player -> IO (Maybe PlayStatus)
@@ -73,7 +79,7 @@ mpvGetPlayStatus playerRef = do
   hPutStrLn (playerCmdIn p) $ concat ["print_text \"", 
                                       cmdPrefix, 
                                       "${=length} ${=time-pos} ${pause} " ++
-                                      "${mute} ${volume}\""]
+                                      "${mute} ${volume} ${fullscreen}\""]
     
   catch (parseLines Nothing $ playerOutRead p) $ printException
 
@@ -156,6 +162,11 @@ mpvSetVolume :: IORef Player -> Int -> IO ()
 mpvSetVolume playerRef vol = do
   p <- readIORef playerRef
   hPutStrLn (playerCmdIn p) $ "set volume " ++ show vol
+
+mpvToggleFullscreen :: IORef Player -> IO ()
+mpvToggleFullscreen playerRef = do
+  p <- readIORef playerRef
+  hPutStrLn (playerCmdIn p) $ "cycle fullscreen"
   
 mpvTerminate :: IORef Player -> IO ()
 mpvTerminate playerRef = do

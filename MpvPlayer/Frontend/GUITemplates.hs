@@ -45,10 +45,12 @@ data Handles = Handles {
       playButton        :: ToggleToolButton,
       scale             :: HScale,
       volumeButton      :: VolumeButton,
+      fullscreenButton  :: ToolButton,
       statusbar         :: Statusbar,
       aboutDialog       :: AboutDialog,
       settingsDialog    :: Dialog,
-      cmdLineEntry      :: Entry
+      cmdLineEntry      :: Entry,
+      fullscreenWindow  :: Window
 } 
 
 getHandlesExp :: Q Exp -> Q Exp
