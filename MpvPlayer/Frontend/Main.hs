@@ -40,6 +40,7 @@ openFile appRef filename = do
     mpvStop p
     mpvTerminate p
 
+  let fsWin = fullscreenWindow $ appHandles app
   let box = background $ appHandles app
   let bgImage = backgroundImage $ appHandles app
   containerRemove box bgImage
@@ -50,6 +51,7 @@ openFile appRef filename = do
   containerAdd box socket
   widgetShow socket
   on box enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
+  on fsWin enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
   wid <- socketGetId socket
 
   playerRef <- mpvPlay (fromNativeWindowId wid) filename (appCmdLine app)
