@@ -37,6 +37,7 @@ import Language.Haskell.TH
 data Handles = Handles {
       mainWindow        :: Window,
       mainBox           :: VBox,
+      background        :: EventBox,
       backgroundImage   :: Image,
       openButton        :: ToolButton,
       settingsButton    :: MenuToolButton,

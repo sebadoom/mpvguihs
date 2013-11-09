@@ -38,19 +38,16 @@ openFile appRef filename = do
     mpvStop p
     mpvTerminate p
 
-  let box = mainBox $ appHandles app
+  let box = background $ appHandles app
   let bgImage = backgroundImage $ appHandles app
-  (packing,padding,_) <- boxQueryChildPacking box bgImage
-  boxId <- get box (boxChildPosition bgImage)
   containerRemove box bgImage
   socket <- socketNew
-  boxPackStart box socket packing padding
-  boxReorderChild box socket boxId
   set socket [widgetCanFocus := True, 
               widgetSensitive := True]
   widgetAddEvents socket [AllEventsMask]
+  containerAdd box socket
   widgetShow socket
-  on socket enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
+  on box enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
   wid <- socketGetId socket
 
   playerRef <- mpvPlay (fromNativeWindowId wid) filename (appCmdLine app)
@@ -150,8 +147,6 @@ connectSignals appRef = do
 
 prepareUI :: Handles -> IO Handles
 prepareUI hs = do
-  -- TODO: show black background for video area
-
   windowSetTitle (mainWindow hs) "mpv GUI"
 
   -- HACK: volume button shows no icon when loaded from Glade.
@@ -164,6 +159,8 @@ prepareUI hs = do
   let s = settingsDialog hs
   dialogAddButton s "gtk-cancel" $ ResponseUser 0
   dialogAddButton s "gtk-ok" $ ResponseUser 1
+
+  widgetModifyBg (background hs) StateNormal $ Color 0 0 0
 
   return $ hs { volumeButton = volBut }
 
