@@ -39,7 +39,7 @@ cmdPrefix :: String
 cmdPrefix = "mpvguihs command response: "
 
 buildArgs :: Word32 -> FilePath -> FilePath -> String -> [String]
-buildArgs wid fifo filename extraArgs = 
+buildArgs wid fifo filename extraArgs = filter (not . null) $ 
   ["--wid=" ++ (printf "0x%x" wid), 
    "--input-file=" ++ fifo, 
    "--status-msg=",
