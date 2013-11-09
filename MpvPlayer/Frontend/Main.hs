@@ -13,6 +13,8 @@ import System.FilePath
 import qualified System.IO as SIO
 import Control.Monad
 import Control.Monad.Reader
+import System.Environment
+import System.Directory
 
 data App = App {
       appHandles :: Handles,
@@ -240,6 +242,20 @@ main = do
   connectSignals appRef
 
   widgetShowAll (mainWindow hs)
+
+  args <- getArgs
+  when ((length args) > 0) $ do
+    let file = head args
+    exists <- doesFileExist file
+    if exists
+      then openFile appRef file
+      else do 
+        dir <- getCurrentDirectory
+        let file' = dir ++ "/" ++ file
+        exists' <- doesFileExist file'
+        if exists' 
+          then openFile appRef file'
+          else putStrLn "Could not find file, ignoring..."
 
   timeoutId <- timeoutAdd (updateUI appRef) 50
 
