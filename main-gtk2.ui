@@ -15,8 +15,8 @@
     <property name="version">0.1.0</property>
     <property name="copyright" translatable="yes">Copyright (C) 2013</property>
     <property name="comments" translatable="yes">A simple mpv GUI written in Haskell</property>
-    <property name="website">https://mpvguihs.github.com</property>
-    <property name="website_label" translatable="yes">https://mpvguihs.github.com</property>
+    <property name="website">https://github.com/sebadoom/mpvguihs</property>
+    <property name="website_label" translatable="yes">https://github.com/sebadoom/mpvguihs</property>
     <property name="license" translatable="yes">This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
