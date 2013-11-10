@@ -2,22 +2,26 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                mpvguihs
-version:             0.1.0.0
+version:             0.1.0
 synopsis:            A simple Gtk2hs frontend for mpv.
 -- description:         
 license:             GPL-3
 license-file:        LICENSE
 author:              Sebastián E. Peyrott
 maintainer:          pseus7+mpvguihs@gmail.com
--- copyright:           
+stability:           experimental
+homepage:            http://mpvguihs.github.com
+copyright:           (C) 2013 Sebastián E. Peyrott
 category:            Multimedia
+tested-with:         GHC == 7.6.3
 build-type:          Simple
 cabal-version:       >=1.8
+data-files:          main-gtk2.ui, mpv-icon-big.png
 
 executable mpvguihs
   extensions:          TemplateHaskell
   main-is:             MpvPlayer/Frontend/Main.hs
-  other-modules:       MpvPlayer.Frontend.GUITemplates, MpvPlayer.Backend
+  other-modules:       MpvPlayer.Frontend.GUITemplates, MpvPlayer.Backend, Paths_mpvguihs
   build-depends:       base == 4.6.*, gtk == 0.12.*, template-haskell, process, 
                        unix, directory, filepath, mtl, X11
 
