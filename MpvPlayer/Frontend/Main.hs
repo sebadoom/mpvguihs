@@ -15,6 +15,7 @@ import Control.Monad
 import Control.Monad.Reader
 import System.Environment
 import System.Directory
+import Paths_mpvguihs
 
 data App = App {
       appHandles :: Handles,
@@ -42,16 +43,13 @@ openFile appRef filename = do
 
   let fsWin = fullscreenWindow $ appHandles app
   let box = background $ appHandles app
-  let bgImage = backgroundImage $ appHandles app
-  containerRemove box bgImage
+  containerForeach box widgetDestroy
   socket <- socketNew
   set socket [widgetCanFocus := True, 
               widgetSensitive := True]
   widgetAddEvents socket [AllEventsMask]
   containerAdd box socket
   widgetShow socket
-  on box enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
-  on fsWin enterNotifyEvent $ tryEvent $ liftIO $ widgetGrabFocus socket
   wid <- socketGetId socket
 
   playerRef <- mpvPlay (fromNativeWindowId wid) filename (appCmdLine app)
@@ -154,9 +152,17 @@ connectSignals appRef = do
 
   onToolButtonClicked (aboutButton hs) $ showAboutDialog appRef
   onToolButtonClicked (settingsButton hs) $ showSettingsDialog appRef
+
+  on (background hs) enterNotifyEvent $ tryEvent $ 
+     liftIO $ focusOnChild hs
+  on (fullscreenWindow hs) enterNotifyEvent $ tryEvent $ 
+     liftIO $ focusOnChild hs
   
   writeIORef appRef app { appToggleSigId = Just idPlay,
                           appVolSigId = Just idVol }
+  where focusOnChild hs = do
+          containerForeach (fullscreenWindow hs) widgetGrabFocus
+          containerForeach (background hs) widgetGrabFocus
 
 prepareUI :: Handles -> IO Handles
 prepareUI hs = do
@@ -199,19 +205,21 @@ checkFullscreen appRef status = do
 
   when (fsFlag && (not fs)) $ do
     cs <- containerGetChildren box
-    let socket = head cs
-    widgetShowAll fsWin
-    widgetReparent socket fsWin
-    windowFullscreen fsWin
-    widgetHide normalWin
+    when (not . null $ cs) $ do
+      let socket = head cs
+      widgetShowAll fsWin
+      widgetReparent socket fsWin
+      windowFullscreen fsWin
+      widgetHide normalWin
 
   when ((not fsFlag) && fs) $ do
     cs <- containerGetChildren fsWin
-    let socket = head cs
-    widgetReparent socket box
-    widgetShowAll normalWin
-    windowUnfullscreen fsWin
-    widgetHide fsWin
+    when (not . null $ cs) $ do
+      let socket = head cs
+      widgetReparent socket box
+      widgetShowAll normalWin
+      windowUnfullscreen fsWin
+      widgetHide fsWin
 
 updateUI :: IORef App -> IO Bool
 updateUI appRef = do
@@ -270,7 +278,7 @@ main :: IO ()
 main = do
   initGUI
   builder <- builderNew
-  builderAddFromFile builder "main-gtk2.ui"
+  builderAddFromFile builder =<< getDataFileName "main-gtk2.ui"
   hs <- prepareUI =<< $(getHandlesExp [| builder |])
 
   statusId <- statusbarGetContextId (statusbar hs) "SimpleStatus" 
