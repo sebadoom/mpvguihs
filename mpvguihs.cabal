@@ -3,20 +3,30 @@
 
 name:                mpvguihs
 version:             0.1.0
-synopsis:            A simple Gtk2hs frontend for mpv.
+synopsis:            A minimalist mpv GUI written in I/O heavy Haskell.
 -- description:         
 license:             GPL-3
 license-file:        LICENSE
 author:              Sebastián E. Peyrott
 maintainer:          pseus7+mpvguihs@gmail.com
 stability:           experimental
-homepage:            http://mpvguihs.github.com
+homepage:            https://github.com/sebadoom/mpvguihs
 copyright:           (C) 2013 Sebastián E. Peyrott
 category:            Multimedia
 tested-with:         GHC == 7.6.3
 build-type:          Simple
 cabal-version:       >=1.8
 data-files:          main-gtk2.ui, mpv-icon-big.png
+extra-source-files:  mpvguihs.desktop, mpvguihs.png
+
+source-repository head
+  type:     git
+  location: git://github.com/sebadoom/mpvguihs.git
+
+source-repository this
+  type:     git
+  location: git://github.com/sebadoom/mpvguihs.git
+  tag:      0.1.0
 
 executable mpvguihs
   extensions:          TemplateHaskell
