@@ -105,7 +105,6 @@ showAboutDialog appRef = do
 
 playToggle :: IORef App -> IO ()
 playToggle appRef = do
-  putStrLn "lol"
   app <- readIORef appRef
   pressed <- toggleToolButtonGetActive (playButton $ appHandles app)
   

@@ -118,7 +118,7 @@ mpvPause playerRef = do
   player <- readIORef playerRef
   status <- mpvGetPlayStatus playerRef
   case status of
-    Nothing -> putStrLn "BUG!"
+    Nothing -> mpvPause playerRef
     Just s ->  when (not $ playStatusPaused s) $ 
                  hPutStrLn (playerCmdIn player) "cycle pause"
   
@@ -127,7 +127,7 @@ mpvUnpause playerRef = do
   player <- readIORef playerRef
   status <- mpvGetPlayStatus playerRef
   case status of 
-    Nothing -> putStrLn "BUG!"
+    Nothing -> mpvUnpause playerRef
     Just s -> when (playStatusPaused s) $ 
                 hPutStrLn (playerCmdIn player) "cycle pause"
 
