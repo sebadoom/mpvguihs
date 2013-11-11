@@ -2,6 +2,8 @@ mpvguihs
 ========
 A minimalist mpv GUI written in I/O heavy Haskell.
 
+![Screenshot](http://i.imgur.com/oS7QF27.jpg)
+
 Building
 --------
 
