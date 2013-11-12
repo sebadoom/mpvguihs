@@ -33,5 +33,5 @@ executable mpvguihs
   main-is:             MpvPlayer/Frontend/Main.hs
   other-modules:       MpvPlayer.Frontend.GUITemplates, MpvPlayer.Backend, Paths_mpvguihs
   build-depends:       base == 4.6.*, gtk == 0.12.*, template-haskell, process, 
-                       unix, directory, filepath, mtl, X11
+                       unix, directory, filepath, mtl
 
