@@ -86,7 +86,6 @@ showSettingsDialog appRef = do
   let s = settingsDialog $ appHandles app
   entrySetText (cmdLineEntry hs) (appCmdLine app)
   r <- dialogRun s
-  print r
   case r of
     ResponseUser 1 -> do 
       cmdLine <- entryGetText (cmdLineEntry hs)
