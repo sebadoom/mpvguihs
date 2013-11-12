@@ -34,6 +34,8 @@ data Player = Player {
       playerOutRead :: Handle
 }
 
+data PlayerDead = PlayerDead
+
 cmdPrefix :: String
 cmdPrefix = "mpvguihs command response: "
 
@@ -70,19 +72,29 @@ parseLines ps readHandle = do
                                            fullscreen) readHandle
     else return ps
 
-mpvGetPlayStatus :: IORef Player -> IO (Maybe PlayStatus)
+hPutStrLnSafe :: Handle -> String -> IO ()
+hPutStrLnSafe h str = catch (hPutStrLn h str) ignoreException
+  where ignoreException :: SomeException -> IO ()
+        ignoreException _ = return ()
+
+mpvGetPlayStatus :: IORef Player -> IO (Either PlayerDead (Maybe PlayStatus))
 mpvGetPlayStatus playerRef = do
   p <- readIORef playerRef
 
-  hPutStrLn (playerCmdIn p) $ concat ["print_text \"", 
-                                      cmdPrefix, 
-                                      "${=length} ${=time-pos} ${pause} " ++
-                                      "${mute} ${volume} ${fullscreen}\""]
+  catch (do hPutStrLn (playerCmdIn p) $ concat 
+              ["print_text \"", cmdPrefix,
+               "${=length} ${=time-pos} ${pause} " ++
+               "${mute} ${volume} ${fullscreen}\""]
     
-  catch (parseLines Nothing $ playerOutRead p) $ printException
+            ps <- catch (parseLines Nothing $ playerOutRead p) $ printException
+            return $ Right ps)
+        handleNoPlayerException
 
   where printException :: SomeException -> IO (Maybe PlayStatus)
         printException e = print e >> return Nothing
+        handleNoPlayerException :: SomeException 
+                                -> IO (Either PlayerDead (Maybe PlayStatus))
+        handleNoPlayerException _ = return $ Left PlayerDead
 
 mpvPlay :: Word32 -> FilePath -> String -> IO (IORef Player)
 mpvPlay wid filename extraArgs = do
@@ -116,51 +128,53 @@ mpvPause playerRef = do
   player <- readIORef playerRef
   status <- mpvGetPlayStatus playerRef
   case status of
-    Nothing -> mpvPause playerRef
-    Just s ->  when (not $ playStatusPaused s) $ 
-                 hPutStrLn (playerCmdIn player) "cycle pause"
+    Left _         -> return ()
+    Right Nothing  -> mpvPause playerRef
+    Right (Just s) -> when (not $ playStatusPaused s) $ 
+                        hPutStrLnSafe (playerCmdIn player) "cycle pause"
   
 mpvUnpause :: IORef Player -> IO ()
 mpvUnpause playerRef = do
   player <- readIORef playerRef
   status <- mpvGetPlayStatus playerRef
   case status of 
-    Nothing -> mpvUnpause playerRef
-    Just s -> when (playStatusPaused s) $ 
-                hPutStrLn (playerCmdIn player) "cycle pause"
+    Left _         -> return ()
+    Right Nothing  -> mpvUnpause playerRef
+    Right (Just s) -> when (playStatusPaused s) $ 
+                        hPutStrLnSafe (playerCmdIn player) "cycle pause"
 
 mpvSeek :: IORef Player -> Double -> IO ()
 mpvSeek player ratio = do
   p <- readIORef player
   let percent = ratio * 100
-  hPutStrLn (playerCmdIn p) $ printf "seek %f absolute-percent" percent
+  hPutStrLnSafe (playerCmdIn p) $ printf "seek %f absolute-percent" percent
 
 mpvStop :: IORef Player -> IO ()
 mpvStop playerRef = do
   p <- readIORef playerRef
-  hPutStrLn (playerCmdIn p) "stop"
+  hPutStrLnSafe (playerCmdIn p) "stop"
 
 mpvSetMuted :: IORef Player -> Bool -> IO ()
 mpvSetMuted playerRef val = do
   p <- readIORef playerRef
   let val' = if val then "yes" else "no"
-  hPutStrLn (playerCmdIn p) $ "set mute " ++ val'
+  hPutStrLnSafe (playerCmdIn p) $ "set mute " ++ val'
 
 mpvSetVolume :: IORef Player -> Int -> IO ()
 mpvSetVolume playerRef vol = do
   p <- readIORef playerRef
-  hPutStrLn (playerCmdIn p) $ "set volume " ++ show vol
+  hPutStrLnSafe (playerCmdIn p) $ "set volume " ++ show vol
 
 mpvToggleFullscreen :: IORef Player -> IO ()
 mpvToggleFullscreen playerRef = do
   p <- readIORef playerRef
-  hPutStrLn (playerCmdIn p) $ "cycle fullscreen"
+  hPutStrLnSafe (playerCmdIn p) $ "cycle fullscreen"
   
 mpvTerminate :: IORef Player -> IO ()
 mpvTerminate playerRef = do
   p <- readIORef playerRef
   let h = playerCmdIn p
-  hPutStrLn h "quit 0"
+  hPutStrLnSafe h "quit 0"
 
   hClose h 
   hClose $ playerOutRead p

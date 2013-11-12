@@ -43,7 +43,7 @@ openFile appRef filename = do
 
   let fsWin = fullscreenWindow $ appHandles app
   let box = background $ appHandles app
-  containerForeach box widgetDestroy
+  containerForeach box $ containerRemove box
   socket <- socketNew
   set socket [widgetCanFocus := True, 
               widgetSensitive := True]
@@ -54,7 +54,32 @@ openFile appRef filename = do
 
   playerRef <- mpvPlay (fromNativeWindowId wid) filename (appCmdLine app)
 
-  writeIORef appRef (app { appPlayer = Just playerRef })
+  writeIORef appRef $ app { appPlayer = Just playerRef }
+
+closeFile :: IORef App -> IO ()
+closeFile appRef = do
+  app <- readIORef appRef
+  let hs = appHandles app
+
+  case appPlayer app of
+    Nothing -> return ()
+    Just playerRef -> do
+      mpvTerminate playerRef
+      
+      let fsWin = fullscreenWindow hs
+          normalWin = mainWindow hs
+          box = background hs
+      
+      containerForeach box $ containerRemove box
+      containerAdd box $ backgroundImage hs
+      widgetShowAll normalWin
+      
+      fs <- widgetGetMapped fsWin
+      when fs $ do
+        windowUnfullscreen fsWin
+        widgetHide fsWin
+      
+      writeIORef appRef $ app { appPlayer = Nothing }
 
 showOpenDialog :: IORef App -> IO ()
 showOpenDialog appRef = do
@@ -236,21 +261,23 @@ updateUI appRef = do
   if playing
      then do
        let p = fromJust $ appPlayer app
-       status <- mpvGetPlayStatus p
-       when (isJust status) $ do
-         let s = fromJust status
-         let ratio = (playStatusPos s) / (playStatusLength s)
-         rangeSetValue (scale hs) ratio
-         set (playButton hs) [toggleToolButtonActive := 
-                              (not $ playStatusPaused s)]
-         set (volumeButton hs) [scaleButtonValue := 
-                                (fromIntegral $ playStatusVol s) / 100]
-         statusbarPop (statusbar hs) (appStatusContextId app)
-         void $ statusbarPush (statusbar hs) (appStatusContextId app) $ 
-           formatPlayMessage (playStatusPos s) (playStatusLength s)
+       status' <- mpvGetPlayStatus p
+       case status' of
+         Right Nothing -> return ()
+         Right (Just s) -> do
+           let ratio = (playStatusPos s) / (playStatusLength s)
+           rangeSetValue (scale hs) ratio
+           set (playButton hs) [toggleToolButtonActive := 
+                                (not $ playStatusPaused s)]
+           set (volumeButton hs) [scaleButtonValue := 
+                                  (fromIntegral $ playStatusVol s) / 100]
+           statusbarPop (statusbar hs) (appStatusContextId app)
+           void $ statusbarPush (statusbar hs) (appStatusContextId app) $ 
+             formatPlayMessage (playStatusPos s) (playStatusLength s)
          
-         checkFullscreen appRef s
-         
+           checkFullscreen appRef s
+         Left _ -> closeFile appRef
+
      else do 
        rangeSetValue (scale hs) 0.0
        set (playButton hs) [toggleToolButtonActive := False]
