@@ -13,8 +13,6 @@ import Text.Read
 import Control.Concurrent 
 import Control.Monad
 import Control.Exception
-import Graphics.X11
-import Graphics.X11.Xlib.Extras
 
 data PlayStatus = PlayStatus {
       playStatusPaused :: Bool,
@@ -130,16 +128,6 @@ mpvUnpause playerRef = do
     Nothing -> mpvUnpause playerRef
     Just s -> when (playStatusPaused s) $ 
                 hPutStrLn (playerCmdIn player) "cycle pause"
-
-mpvSetInputFocus :: IORef Player -> IO ()
-mpvSetInputFocus playerRef = do
-  player <- readIORef playerRef
-  let wid' = fromIntegral $ playerWid player
-  d <- openDisplay ""
-
-  (_,_,[wid]) <- queryTree d wid'
-  setInputFocus d wid revertToNone currentTime
-  putStrLn "Focus set"
 
 mpvSeek :: IORef Player -> Double -> IO ()
 mpvSeek player ratio = do
