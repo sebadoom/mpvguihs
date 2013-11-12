@@ -186,11 +186,11 @@ formatPlayMessage :: Double -> Double -> String
 formatPlayMessage pos total = concat 
     [str $ hours pos  ,":", str $ mins pos  ,":",str $ secs pos, " / ",
      str $ hours total,":", str $ mins total,":",str $ secs total]
-    where comp t = round $ 60 * (snd $ properFraction t)
+    where comp t = floor $ 60 * (snd $ properFraction t)
           str t = if t < 10 then "0" ++ show t else show t
           secs t = comp $ t / 60 :: Int
           mins t = comp $ t / 60 / 60 :: Int
-          hours t = round $ t / 60 / 60 / 60 :: Int
+          hours t = floor $ t / 60 / 60 :: Int
 
 checkFullscreen :: IORef App -> PlayStatus -> IO ()
 checkFullscreen appRef status = do
