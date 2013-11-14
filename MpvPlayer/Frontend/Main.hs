@@ -15,6 +15,7 @@ import Control.Monad
 import Control.Monad.Reader
 import System.Environment
 import System.Directory
+import Data.Version
 import Paths_mpvguihs
 
 data App = App {
@@ -190,6 +191,9 @@ connectSignals appRef = do
 prepareUI :: Handles -> IO Handles
 prepareUI hs = do
   windowSetTitle (mainWindow hs) "mpv GUI"
+
+  let about = aboutDialog hs
+  set about [aboutDialogVersion := showVersion version]
 
   -- HACK: volume button shows no icon when loaded from Glade.
   p <- widgetGetParent (volumeButton hs)
