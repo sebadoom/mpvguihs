@@ -132,7 +132,7 @@ playToggle :: IORef App -> IO ()
 playToggle appRef = do
   app <- readIORef appRef
   pressed <- toggleToolButtonGetActive (playButton $ appHandles app)
-  
+
   case (appPlayer app) of
     Just p -> if pressed 
               then mpvUnpause p
@@ -154,7 +154,7 @@ setVolume appRef vol = do
 toggleFullscreen :: IORef App -> IO ()
 toggleFullscreen appRef = do
   app <- readIORef appRef
-  when (isJust $ appPlayer app) $
+  when (isJust $ appPlayer app) $ do
     mpvToggleFullscreen (fromJust $ appPlayer app)
 
 connectSignals :: IORef App -> IO ()

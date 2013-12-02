@@ -47,30 +47,45 @@ buildArgs wid fifo filename extraArgs = filter (not . null) $
    extraArgs,
    filename]
 
-parseLines :: Maybe PlayStatus -> Handle -> IO (Maybe PlayStatus)
-parseLines ps readHandle = do
+getResponse :: String -> Handle -> IO (Maybe String)
+getResponse prefix readHandle = do
   ready <- hReady readHandle
   if ready
     then do
       line <- hGetLine readHandle 
-      let status = stripPrefix cmdPrefix line
+      let status = stripPrefix prefix line
       case status of
-        Nothing -> putStrLn line >> parseLines ps readHandle
-        Just i  -> 
-          let [len, r, p, m, vol, fs] = words i
-              len' = fromMaybe 0.0 $ readMaybe len
-              r' = fromMaybe 0.0 $ readMaybe r
-              paused = p == "yes"
-              muted = m == "yes"
-              vol' = round $ (fromMaybe 0.0 $ readMaybe vol :: Double)
-              fullscreen = fs == "yes"
-          in parseLines (Just $ PlayStatus paused 
-                                           len' 
-                                           r' 
-                                           muted 
-                                           vol' 
-                                           fullscreen) readHandle
-    else return ps
+        Nothing -> putStrLn line >> getResponse prefix readHandle
+        Just i  -> return $ Just i
+    else return Nothing
+
+getProperty :: Handle -> Handle -> String -> IO (Maybe String)
+getProperty hIn hOut p = do
+  let str = concat ["print_text \"", cmdPrefix, p, "\""]
+  ex <- try $ hPutStrLn hIn str :: IO (Either SomeException ())
+  case ex of
+    Left _  -> return Nothing
+    Right _ -> getResponse cmdPrefix hOut                 
+
+parseLines :: Maybe PlayStatus -> Handle -> IO (Maybe PlayStatus)
+parseLines ps readHandle = do
+  info <- getResponse cmdPrefix readHandle
+  case info of
+    Nothing -> return ps
+    Just i  -> 
+      let [len, r, p, m, vol, fs] = words i
+          len' = fromMaybe 0.0 $ readMaybe len
+          r' = fromMaybe 0.0 $ readMaybe r
+          paused = p == "yes"
+          muted = m == "yes"
+          vol' = round $ (fromMaybe 0.0 $ readMaybe vol :: Double)
+          fullscreen = fs == "yes"
+      in parseLines (Just $ PlayStatus paused 
+                                       len' 
+                                       r' 
+                                       muted 
+                                       vol' 
+                                       fullscreen) readHandle
 
 hPutStrLnSafe :: Handle -> String -> IO ()
 hPutStrLnSafe h str = catch (hPutStrLn h str) ignoreException
@@ -170,6 +185,15 @@ mpvToggleFullscreen playerRef = do
   p <- readIORef playerRef
   hPutStrLnSafe (playerCmdIn p) $ "cycle fullscreen"
   
+{- Test:
+mpvGetMetadata :: IORef Player -> IO (String, String)
+mpvGetMetadata playerRef = do
+  p <- readIORef playerRef
+  prop <- getProperty (playerCmdIn p) (playerOutRead p) "${metadata}"
+  print prop
+  return ("", "")
+-}
+
 mpvTerminate :: IORef Player -> IO ()
 mpvTerminate playerRef = do
   p <- readIORef playerRef
